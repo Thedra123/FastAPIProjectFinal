@@ -13,9 +13,6 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 def create_order(payload: OrderCreate,
                  db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    """
-    Create a new order for the current user.
-    """
     product = db.query(Product).filter(Product.id == payload.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -42,10 +39,6 @@ def create_order(payload: OrderCreate,
 @router.get("/", response_model=List[OrderOut])
 def list_orders(db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
-    """
-    List all orders belonging to the current user.
-    Admins can see all orders.
-    """
     if current_user.role.value == "admin":
         orders = db.query(Order).all()
     else:
@@ -57,9 +50,6 @@ def list_orders(db: Session = Depends(get_db),
 def get_order(order_id: int,
               db: Session = Depends(get_db),
               current_user: User = Depends(get_current_user)):
-    """
-    Get details of a specific order.
-    """
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -75,9 +65,6 @@ def update_order(order_id: int,
                  payload: OrderCreate,
                  db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    """
-    Update an order (quantity or product). Only pending orders.
-    """
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -105,9 +92,6 @@ def update_order(order_id: int,
 def delete_order(order_id: int,
                  db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    """
-    Delete an order (only pending ones).
-    """
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")

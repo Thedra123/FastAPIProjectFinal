@@ -13,7 +13,6 @@ router = APIRouter(prefix="/api/customers", tags=["customers"])
 
 @router.post("/", response_model=CustomerOut, status_code=status.HTTP_201_CREATED)
 def create_customer(payload: CustomerIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Create a new customer (admin only)."""
     if user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -35,7 +34,6 @@ def list_customers(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, le=100),
 ):
-    """List all customers with pagination and search."""
     query = db.query(Customer)
 
     if search:
@@ -49,7 +47,6 @@ def list_customers(
 
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db)):
-    """Retrieve a single customer by ID."""
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -63,7 +60,6 @@ def update_customer(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Update customer info (admin only)."""
     if user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -82,7 +78,6 @@ def update_customer(
 
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_customer(customer_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Delete customer (admin only)."""
     if user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 

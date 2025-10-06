@@ -13,8 +13,6 @@ router = APIRouter(prefix="/api/products", tags=["products"])
 
 @router.post("/", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
 def create_product(payload: ProductIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Create a new product (admin only)."""
-    # Sadece admin ürün ekleyebilir
     if user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -45,7 +43,6 @@ def list_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, le=100),
 ):
-    """List all products with pagination, search, and ordering."""
     query = db.query(Product)
 
     # Search
@@ -70,7 +67,6 @@ def list_products(
 
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(product_id: int, db: Session = Depends(get_db)):
-    """Retrieve a single product by ID."""
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -84,7 +80,6 @@ def update_product(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Update product (admin only)."""
     if user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -106,7 +101,6 @@ def update_product(
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(product_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """Delete product (admin only)."""
     if user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
