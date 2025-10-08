@@ -6,7 +6,7 @@ from typing import List, Optional
 from database import get_db
 from models import Product
 from schemas import ProductIn, ProductOut
-from deps import get_current_user
+from deps import get_current_user, get_current_admin
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -111,3 +111,8 @@ def delete_product(product_id: int, db: Session = Depends(get_db), user=Depends(
     db.delete(product)
     db.commit()
     return None
+
+@router.get("/products", dependencies=[Depends(get_current_admin)])
+def get_all_products(db: Session = Depends(get_db)):
+    return db.query(Product).all()
+

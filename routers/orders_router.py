@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from models import Order, Product, User
+from models import Order, Product, User, Customer
 from schemas import OrderCreate, OrderOut
 from deps import get_db, get_current_user
 
@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 def create_order(payload: OrderCreate,
                  db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
+
     product = db.query(Product).filter(Product.id == payload.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -20,20 +21,31 @@ def create_order(payload: OrderCreate,
     if payload.quantity <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be greater than 0")
 
+    # Customer kaydı yoksa oluştur
+    customer = db.query(Customer).filter(Customer.user_id == current_user.id).first()
+    if not customer:
+        customer = Customer(
+            user_id=current_user.id,
+            full_name=current_user.email.split("@")[0].title(),
+            email=current_user.email
+        )
+        db.add(customer)
+        db.commit()
+        db.refresh(customer)
+
     total_price = product.price * payload.quantity
 
     order = Order(
         user_id=current_user.id,
-        product_id=payload.product_id,
-        quantity=payload.quantity,
-        total_price=total_price,
-        status="pending"
+        customer_id=customer.id,
+        total=total_price,
     )
 
     db.add(order)
     db.commit()
     db.refresh(order)
     return order
+
 
 
 @router.get("/", response_model=List[OrderOut])

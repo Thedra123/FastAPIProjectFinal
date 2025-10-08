@@ -29,9 +29,13 @@ class Product(Base):
 class Customer(Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
     full_name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     phone = Column(String, nullable=True)
+
+    user = relationship("User", backref="customer")
+
 
 class OrderStatus(PyEnum):
     new = "NEW"
@@ -42,12 +46,16 @@ class OrderStatus(PyEnum):
 class Order(Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True)
-    customer_id = Column(Integer, ForeignKey("customers.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     status = Column(Enum(OrderStatus), default=OrderStatus.new)
     total = Column(Float, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", backref="orders")
     customer = relationship("Customer", backref="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete")
+
 
 class OrderItem(Base):
     __tablename__ = "order_items"
@@ -60,3 +68,5 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product")
+
+
