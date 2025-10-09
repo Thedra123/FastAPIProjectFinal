@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine
+
 from auth_router import router as auth_router
 from routers.products_router import router as products_router
 from routers.customers_router import router as customers_router
-
+from routers.orders_router import router as orders_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -18,14 +19,15 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,        # izin verilen frontend originleri
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],          # GET, POST, PUT, DELETE vs.
-    allow_headers=["*"],          # tüm header’lar
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 # -------------------------------------------------
 
-# Router'ları ekle
+
 app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(customers_router)
+app.include_router(orders_router)

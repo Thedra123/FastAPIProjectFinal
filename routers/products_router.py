@@ -45,11 +45,11 @@ def list_products(
 ):
     query = db.query(Product)
 
-    # Search
+
     if search:
         query = query.filter(or_(Product.name.ilike(f"%{search}%"), Product.sku.ilike(f"%{search}%")))
 
-    # Ordering
+
     if ordering:
         order_field = ordering.lstrip("-")
         if hasattr(Product, order_field):
@@ -58,7 +58,7 @@ def list_products(
                 column = column.desc()
             query = query.order_by(column)
 
-    # Pagination
+
     total = query.count()
     products = query.offset((page - 1) * page_size).limit(page_size).all()
 

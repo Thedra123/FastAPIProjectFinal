@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List
 
-from models import Order, Product, User, Customer
+from models import Order, Product, User, Customer, OrderItem
 from schemas import OrderCreate, OrderOut
 from deps import get_db, get_current_user
 
@@ -13,7 +13,6 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 def create_order(payload: OrderCreate,
                  db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-
     product = db.query(Product).filter(Product.id == payload.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -21,7 +20,10 @@ def create_order(payload: OrderCreate,
     if payload.quantity <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be greater than 0")
 
-    # Customer kaydı yoksa oluştur
+    if product.qty_in_stock < payload.quantity:
+        raise HTTPException(status_code=400, detail="Not enough stock")
+
+
     customer = db.query(Customer).filter(Customer.user_id == current_user.id).first()
     if not customer:
         customer = Customer(
@@ -40,21 +42,42 @@ def create_order(payload: OrderCreate,
         customer_id=customer.id,
         total=total_price,
     )
-
     db.add(order)
-    db.commit()
-    db.refresh(order)
-    return order
+    db.flush()
 
+
+    order_item = OrderItem(
+        order_id=order.id,
+        product_id=product.id,
+        qty=payload.quantity,
+        unit_price=product.price,
+        line_total=total_price
+    )
+    db.add(order_item)
+
+    product.qty_in_stock -= payload.quantity
+
+    db.commit()
+
+
+    final_order = db.query(Order).options(
+        selectinload(Order.items)
+    ).filter(Order.id == order.id).first()
+
+    return final_order
 
 
 @router.get("/", response_model=List[OrderOut])
 def list_orders(db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
+    # İlişkili öğeleri (items) her zaman yükle
+    query = db.query(Order).options(selectinload(Order.items))
+
     if current_user.role.value == "admin":
-        orders = db.query(Order).all()
+        orders = query.all()
     else:
-        orders = db.query(Order).filter(Order.user_id == current_user.id).all()
+        orders = query.filter(Order.user_id == current_user.id).all()
+
     return orders
 
 
@@ -62,7 +85,10 @@ def list_orders(db: Session = Depends(get_db),
 def get_order(order_id: int,
               db: Session = Depends(get_db),
               current_user: User = Depends(get_current_user)):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    order = db.query(Order).options(
+        selectinload(Order.items)
+    ).filter(Order.id == order_id).first()
+
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
@@ -77,27 +103,48 @@ def update_order(order_id: int,
                  payload: OrderCreate,
                  db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    order = db.query(Order).options(selectinload(Order.items)).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    if order.status != "pending":
-        raise HTTPException(status_code=400, detail="Only pending orders can be updated")
+    if order.status.value != "NEW":
+        raise HTTPException(status_code=400, detail="Only NEW orders can be updated")
+
+    for item in order.items:
+        product_old = db.query(Product).filter(Product.id == item.product_id).first()
+        if product_old:
+            product_old.qty_in_stock += item.qty
+        db.delete(item)
+
+    db.commit()
 
     product = db.query(Product).filter(Product.id == payload.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    order.product_id = payload.product_id
-    order.quantity = payload.quantity
-    order.total_price = product.price * payload.quantity
+    if product.qty_in_stock < payload.quantity:
+        raise HTTPException(status_code=400, detail="Not enough stock")
+
+    order_item = OrderItem(
+        order_id=order.id,
+        product_id=payload.product_id,
+        qty=payload.quantity,
+        unit_price=product.price,
+        line_total=product.price * payload.quantity
+    )
+    db.add(order_item)
+
+    product.qty_in_stock -= payload.quantity
+    order.total = product.price * payload.quantity
 
     db.commit()
     db.refresh(order)
-    return order
+
+    final_order = db.query(Order).options(selectinload(Order.items)).filter(Order.id == order.id).first()
+    return final_order
 
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -111,8 +158,13 @@ def delete_order(order_id: int,
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    if order.status != "pending":
-        raise HTTPException(status_code=400, detail="Cannot delete non-pending orders")
+    if order.status.value != "NEW":
+        raise HTTPException(status_code=400, detail="Cannot delete non-NEW orders")
+
+    for item in order.items:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        if product:
+            product.qty_in_stock += item.qty
 
     db.delete(order)
     db.commit()

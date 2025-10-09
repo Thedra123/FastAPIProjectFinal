@@ -20,7 +20,7 @@ def list_customers(
     page_size: int = Query(10, le=100),
     user: User = Depends(get_current_user),
 ):
-    # Sadece admin customers görebilir
+
     if user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
